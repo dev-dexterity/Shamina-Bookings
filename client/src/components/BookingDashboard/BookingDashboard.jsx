@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Mail, Phone, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, Clock, User, Mail, Phone, CheckCircle, XCircle, ChevronDown } from 'lucide-react';
 import './BookingDashboard.css';
 
 const BookingDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedService, setSelectedService] = useState(null);
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [bookingData, setBookingData] = useState({
     name: '',
@@ -16,23 +18,40 @@ const BookingDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // Available time slots
-  const timeSlots = [
-    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-    '12:00', '12:30', '14:00', '14:30', '15:00', '15:30',
-    '16:00', '16:30', '17:00', '17:30', '18:00'
+  // Available services
+  const services = [
+    { id: 1, name: 'Gel + capsule', price: '35dt' },
+    { id: 2, name: 'Vernis Permanent', price: '25dt' },
+    { id: 3, name: 'Vernis Pieds', price: '15dt' },
+    { id: 4, name: 'Gel Capsule + Vernis pieds', price: '45dt' },
+    { id: 5, name: 'Vernis Permanent main + pieds', price: '35dt' }
   ];
 
-  // Mock booked slots (in real app, fetch from backend)
+  // Available time slots
+  const timeSlots = [
+    '10:00 - 13:00', '13:00 - 16:00', '16:00 - 19:00',
+    '19:00 - 21:00'
+  ];
+
+  // Mock booked slots
   useEffect(() => {
-    // Simulate some pre-booked slots
     const mockBookedSlots = new Set([
-      '2025-05-29-10:00',
-      '2025-05-29-14:30',
-      '2025-05-30-11:00',
-      '2025-06-02-15:00'
+      '2025-05-29-10:00 - 13:00',
+      '2025-05-29-13:00 - 16:00',
+      '2025-05-30-10:00 - 13:00',
+      '2025-06-02-16:00 - 19:00'
     ]);
     setBookedSlots(mockBookedSlots);
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowServiceDropdown(false);
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   const showNotification = (message, type = 'success') => {
@@ -50,12 +69,10 @@ const BookingDashboard = () => {
 
     const days = [];
     
-    // Add empty cells for days before the first day of the month
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
     
-    // Add all days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(new Date(year, month, day));
     }
@@ -78,6 +95,11 @@ const BookingDashboard = () => {
     return !bookedSlots.has(slotKey);
   };
 
+  const handleServiceSelect = (service) => {
+    setSelectedService(service);
+    setShowServiceDropdown(false);
+  };
+
   const handleDateClick = (date) => {
     if (!isDateAvailable(date)) return;
     setSelectedDate(date);
@@ -98,8 +120,17 @@ const BookingDashboard = () => {
     });
   };
 
-  const handleBookingSubmit = async (e) => {
-    e.preventDefault();
+  const handleBookingSubmit = async () => {
+    if (!selectedService) {
+      showNotification('Please select a service before booking.', 'error');
+      return;
+    }
+
+    if (!bookingData.name || !bookingData.email || !bookingData.whatsapp) {
+      showNotification('Please fill in all required fields.', 'error');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -111,11 +142,20 @@ const BookingDashboard = () => {
       newBookedSlots.add(slotKey);
       setBookedSlots(newBookedSlots);
 
-      // In real app, make API call to backend
+      // Complete booking payload including service
       const bookingPayload = {
         date: formatDate(selectedDate),
         time: selectedTime,
-        ...bookingData
+        service: {
+          id: selectedService.id,
+          name: selectedService.name,
+          price: selectedService.price
+        },
+        customerInfo: {
+          name: bookingData.name,
+          email: bookingData.email,
+          whatsapp: bookingData.whatsapp
+        }
       };
 
       console.log('Booking submitted:', bookingPayload);
@@ -125,6 +165,7 @@ const BookingDashboard = () => {
       setShowBookingForm(false);
       setSelectedDate(null);
       setSelectedTime(null);
+      setSelectedService(null);
       
       showNotification('Booking confirmed! Check your email for confirmation details.');
     } catch (error) {
@@ -158,16 +199,56 @@ const BookingDashboard = () => {
         {/* Header */}
         <div className="header">
           <h1 className="title">Book Your Appointment</h1>
-          <p className="subtitle">Select a date and time that works for you</p>
+          <p className="subtitle">Select a service, date and time that works for you</p>
         </div>
 
         {/* Notification */}
         {notification && (
           <div className={`notification ${notification.type}`}>
             {notification.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
-            {notification.message}
+            <span>{notification.message}</span>
           </div>
         )}
+
+        {/* Services Dropdown */}
+        {/* <div className="services-section">
+          <h3 className="section-title">Services</h3>
+          <div className="dropdown-container">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowServiceDropdown(!showServiceDropdown);
+              }}
+              className="dropdown-button"
+            >
+              <span className={selectedService ? 'selected-text' : 'placeholder-text'}>
+                {selectedService 
+                  ? `${selectedService.name} - ${selectedService.price}`
+                  : 'Select a service'
+                }
+              </span>
+              <ChevronDown 
+                size={20} 
+                className={`dropdown-icon ${showServiceDropdown ? 'rotated' : ''}`}
+              />
+            </button>
+            
+            {showServiceDropdown && (
+              <div className="dropdown-menu">
+                {services.map((service) => (
+                  <button
+                    key={service.id}
+                    onClick={() => handleServiceSelect(service)}
+                    className="dropdown-item"
+                  >
+                    <span>{service.name}</span>
+                    <span className="service-price">{service.price}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div> */}
 
         <div className="main-content">
           {/* Calendar Section */}
@@ -181,7 +262,9 @@ const BookingDashboard = () => {
               </button>
               <h2 className="month-title">
                 <Calendar size={24} />
-                {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                <span className="month-text">
+                  {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                </span>
               </h2>
               <button
                 onClick={() => navigateMonth(1)}
@@ -231,7 +314,7 @@ const BookingDashboard = () => {
               <div className="time-slots-section">
                 <h3 className="section-title">
                   <Clock size={20} />
-                  Available Times for {selectedDate.toLocaleDateString()}
+                  <span>Available Times for {selectedDate.toLocaleDateString()}</span>
                 </h3>
                 <div className="time-slots-grid">
                   {timeSlots.map(time => {
@@ -260,14 +343,65 @@ const BookingDashboard = () => {
                 <div className="selected-info">
                   <p>
                     <strong>Selected:</strong> {selectedDate.toLocaleDateString()} at {selectedTime}
+                    {selectedService && (
+                      <>
+                        <br />
+                        <strong>Service:</strong> {selectedService.name} - {selectedService.price}
+                      </>
+                    )}
                   </p>
                 </div>
 
-                <form onSubmit={handleBookingSubmit} className="booking-form">
+                <div className="booking-form">
+                  {/* Service Selection in Form */}
+                  <div className="form-group">
+                    <label className="form-label">
+                      <ChevronDown size={16} />
+                      Service *
+                    </label>
+                    <div className="dropdown-container">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowServiceDropdown(!showServiceDropdown);
+                        }}
+                        className={`dropdown-button ${selectedService ? 'valid' : 'invalid'}`}
+                      >
+                        <span className={selectedService ? 'selected-text' : 'placeholder-text'}>
+                          {selectedService 
+                            ? `${selectedService.name} - ${selectedService.price}`
+                            : 'Select a service *'
+                          }
+                        </span>
+                        <ChevronDown 
+                          size={20} 
+                          className={`dropdown-icon ${showServiceDropdown ? 'rotated' : ''}`}
+                        />
+                      </button>
+                      
+                      {showServiceDropdown && (
+                        <div className="dropdown-menu">
+                          {services.map((service) => (
+                            <button
+                              key={service.id}
+                              type="button"
+                              onClick={() => handleServiceSelect(service)}
+                              className="dropdown-item"
+                            >
+                              <span>{service.name}</span>
+                              <span className="service-price">{service.price}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="form-group">
                     <label className="form-label">
                       <User size={16} />
-                      Full Name
+                      Full Name *
                     </label>
                     <input
                       type="text"
@@ -283,7 +417,7 @@ const BookingDashboard = () => {
                   <div className="form-group">
                     <label className="form-label">
                       <Mail size={16} />
-                      Email Address
+                      Email Address *
                     </label>
                     <input
                       type="email"
@@ -299,7 +433,7 @@ const BookingDashboard = () => {
                   <div className="form-group">
                     <label className="form-label">
                       <Phone size={16} />
-                      WhatsApp Number
+                      WhatsApp Number *
                     </label>
                     <input
                       type="tel"
@@ -321,14 +455,15 @@ const BookingDashboard = () => {
                       Cancel
                     </button>
                     <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="submit-button"
+                      type="button"
+                      onClick={handleBookingSubmit}
+                      disabled={isLoading || !selectedService}
+                      className={`submit-button ${isLoading || !selectedService ? 'disabled' : ''}`}
                     >
                       {isLoading ? 'Booking...' : 'Confirm Booking'}
                     </button>
                   </div>
-                </form>
+                </div>
               </div>
             )}
           </div>
